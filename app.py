@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
+import gc # Herramienta para limpiar la memoria RAM
 
 app = Flask(__name__)
 CORS(app) 
 
-print("🧠 Iniciando el Gran Cerebro Antártico...")
+print("🧠 Servidor iniciado en Modo Carga Perezosa (Ahorro de Memoria)...")
 
-# 1. Diccionario con todos tus modelos
 archivos_modelos = {
     'no3': 'modelo_final_no3.pkl',
     'sat_n2o': 'modelo_final_sat_n2o.pkl',
@@ -22,19 +22,9 @@ archivos_modelos = {
     'vel_sonido': 'modelo_rf_vel_sonido.pkl'
 }
 
-modelos_cargados = {}
-
-# 2. Cargar todos los modelos que existan en la carpeta
-for variable, archivo in archivos_modelos.items():
-    try:
-        modelos_cargados[variable] = joblib.load(archivo)
-        print(f"✅ Cargado: {archivo}")
-    except FileNotFoundError:
-        print(f"⚠️ Omitido (No encontrado): {archivo}")
-
 @app.route('/', methods=['GET'])
 def home():
-    return f"¡Radar Oceanográfico en línea! Modelos activos: {list(modelos_cargados.keys())}"
+    return "¡Radar Oceanográfico en línea! (Modo Ahorro de Memoria Activado 🔋)"
 
 @app.route('/predecir', methods=['POST'])
 def predecir():
@@ -43,22 +33,31 @@ def predecir():
         lat = float(datos['latitud'])
         lon = float(datos['longitud'])
         prof = float(datos['profundidad'])
-        
-        # Como NO3 necesita salinidad, podemos usar un valor por defecto o pedirlo
         sal = float(datos.get('salinidad', 34.5)) 
 
+        entradas_fisicas = [[lat, lon, prof]]
         resultados = {}
 
-        # 3. Hacer predicciones masivas
-        # Todos estos usan Lat, Lon, Prof
-        entradas_fisicas = [[lat, lon, prof]]
+        # 🚀 LA MAGIA: Cargar un modelo, usarlo y borrarlo.
+        for variable, archivo in archivos_modelos.items():
+            try:
+                # 1. Cargar solo este modelo a la RAM
+                modelo = joblib.load(archivo)
+                
+                # 2. Hacer predicción
+                if variable == 'no3':
+                    resultados[variable] = round(modelo.predict([[lat, lon, sal]])[0], 4)
+                else:
+                    resultados[variable] = round(modelo.predict(entradas_fisicas)[0], 4)
+                
+                # 3. Borrar el modelo de la memoria RAM inmediatamente
+                del modelo
+                
+            except FileNotFoundError:
+                resultados[variable] = "No disponible"
         
-        # Iterar sobre los modelos cargados para predecir
-        for variable, modelo in modelos_cargados.items():
-            if variable == 'no3':
-                resultados[variable] = round(modelo.predict([[lat, lon, sal]])[0], 4)
-            else:
-                resultados[variable] = round(modelo.predict(entradas_fisicas)[0], 4)
+        # 4. Pasar la "escoba" para vaciar la basura de la RAM
+        gc.collect()
 
         return jsonify(resultados)
 
