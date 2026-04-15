@@ -24,7 +24,7 @@ archivos_modelos = {
 
 @app.route('/', methods=['GET'])
 def home():
-    return "¡Radar Oceanográfico en línea! (Modo Ahorro de Memoria y Escudo Activado 🛡️)"
+    return "¡Radar Oceanográfico en línea! (Modo Escudo Activado 🛡️)"
 
 @app.route('/predecir', methods=['POST'])
 def predecir():
@@ -36,7 +36,6 @@ def predecir():
 
     resultados = {}
 
-    # El servidor intentará predecir uno por uno sin que un error detenga al resto
     for variable, archivo in archivos_modelos.items():
         modelo = None
         try:
@@ -48,21 +47,16 @@ def predecir():
                 resultados[variable] = round(modelo.predict([[lat, lon, prof]])[0], 4)
                 
         except ValueError as e:
-            # Si el modelo pide más de 3 variables, leemos su cerebro para saber cuáles son
-            if hasattr(modelo, 'feature_names_in_'):
-                esperadas = list(modelo.feature_names_in_)
-                resultados[variable] = f"Error: El modelo requiere {len(esperadas)} datos exactos -> {esperadas}"
-            else:
-                resultados[variable] = "Error: El modelo requiere más o diferentes variables."
+            resultados[variable] = "Error: Este modelo antiguo pide 5 variables en vez de 3."
         except FileNotFoundError:
-            resultados[variable] = "Modelo no encontrado o no subido."
+            resultados[variable] = "Modelo no encontrado."
         except Exception as e:
             resultados[variable] = f"Error desconocido: {str(e)}"
         finally:
             if modelo is not None:
                 del modelo # Borrar de RAM
     
-    gc.collect() # Limpiar basura
+    gc.collect() # Limpiar memoria
     return jsonify(resultados)
 
 if __name__ == '__main__':
